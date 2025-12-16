@@ -1,0 +1,65 @@
+# Apollo Tyres Chennai - Tyre Mark Inspection Configuration
+
+project:
+  name: "Apollo Tyres Chennai - Paint Mark Inspection POC"
+  target_samples: 3000
+
+camera:
+  device_id: 0
+  width: 1920
+  height: 1080
+  fps: 30
+  mounting_height_mm: 1100
+  pixels_per_mm: 1.2  # Calibrate on first run
+
+capture:
+  # State machine
+  tyre_presence_threshold: 0.15
+  tyre_fully_visible_margin: 50
+  empty_conveyor_threshold: 0.05
+  stability_frames: 3
+  min_capture_interval_ms: 1500
+  
+  # Image saving
+  save_full_frame: true
+  save_tyre_crop: true
+  save_annotated: true
+  save_individual_marks: true
+  jpeg_quality: 95
+
+detection:
+  # HSV color ranges
+  red_lower1: [0, 100, 100]
+  red_upper1: [10, 255, 255]
+  red_lower2: [170, 100, 100]
+  red_upper2: [180, 255, 255]
+  yellow_lower: [20, 100, 100]
+  yellow_upper: [35, 255, 255]
+  
+  # Blob filtering
+  min_mark_area: 100
+  max_mark_area: 2000
+  min_circularity_filter: 0.5
+  
+  # Donut detection
+  donut_inner_ratio_min: 0.2
+  donut_inner_ratio_max: 0.6
+  
+  # Morphology
+  morph_kernel_size: 5
+  morph_iterations: 2
+
+measurement:
+  expected_diameter_mm: 12.0
+  diameter_tolerance_mm: 3.0
+
+storage:
+  database_path: "./data/inspection.db"
+  captures_path: "./data/captures"
+  marks_path: "./data/marks"
+  baselines_path: "./data/baselines"
+  exports_path: "./data/exports"
+
+dashboard:
+  host: "0.0.0.0"
+  port: 8501
