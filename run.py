@@ -10,6 +10,7 @@ import time
 import signal
 import threading
 import queue
+import cv2
 from datetime import datetime
 from pathlib import Path
 
@@ -168,6 +169,13 @@ class InspectionSystem:
                     self._latest_annotated = annotated
                     self._latest_state = self.state_machine.state
                     self._latest_marks = marks
+                
+                # Save latest frame to file for dashboard live view
+                try:
+                    live_frame_path = Path(self.config.storage.captures_path).parent / "live_frame.jpg"
+                    cv2.imwrite(str(live_frame_path), annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                except:
+                    pass  # Ignore errors saving live frame
                 
                 # Small delay to control frame rate
                 time.sleep(0.03)

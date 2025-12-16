@@ -26,16 +26,24 @@ class Camera:
             if self._is_connected:
                 return True
             
-            self.cap = cv2.VideoCapture(self.config.device_id)
+            # Use V4L2 backend explicitly for Linux/RPi
+            self.cap = cv2.VideoCapture(self.config.device_id, cv2.CAP_V4L2)
             
             if not self.cap.isOpened():
                 print(f"Failed to open camera device {self.config.device_id}")
                 return False
             
+            # Set FOURCC codec before resolution for better compatibility
+            self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+            
             # Set camera properties
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.width)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.height)
             self.cap.set(cv2.CAP_PROP_FPS, self.config.fps)
+            
+            # Warm up camera - discard initial frames
+            for _ in range(5):
+                self.cap.read()
             
             # Verify settings
             actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
