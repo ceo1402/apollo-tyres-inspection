@@ -57,6 +57,34 @@ measurement:
   expected_diameter_mm: 12.0
   diameter_tolerance_mm: 3.0
 
+# Quality assessment thresholds for defect detection
+# These define what constitutes a "good" paint mark
+quality:
+  # Circularity: 1.0 = perfect circle
+  circularity_ideal: 1.0
+  circularity_min_acceptable: 0.75
+  circularity_weight: 0.35
+  
+  # Solidity: 1.0 = no concavities (smooth filled shape)
+  solidity_ideal: 1.0
+  solidity_min_acceptable: 0.85
+  solidity_weight: 0.25
+  
+  # Eccentricity: 0.0 = perfect circle, 1.0 = line
+  eccentricity_ideal: 0.0
+  eccentricity_max_acceptable: 0.3
+  eccentricity_weight: 0.20
+  
+  # Edge roughness: 0.0 = smooth, higher = rougher
+  edge_roughness_ideal: 0.0
+  edge_roughness_max_acceptable: 0.3
+  edge_roughness_weight: 0.20
+  
+  # Statistical thresholds (standard deviation multipliers)
+  sigma_excellent: 1.0   # Within 1 standard deviation = excellent
+  sigma_good: 2.0        # Within 2 standard deviations = good
+  sigma_marginal: 3.0    # Within 3 standard deviations = marginal
+
 storage:
   database_path: "./data/inspection.db"
   captures_path: "./data/captures"
