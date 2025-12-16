@@ -180,6 +180,121 @@ capture:
 - Increase `stability_frames`
 - Verify tyre pauses at inspection station
 
+## Raspberry Pi 5 Deployment
+
+### Hardware Requirements
+- Raspberry Pi 5 (8GB RAM recommended)
+- 256GB SD card or larger
+- Logitech C922 Pro HD webcam
+- Pi OS 64-bit
+
+### RPi5 Setup Instructions
+
+1. **Update system:**
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+2. **Install system dependencies:**
+```bash
+sudo apt install -y python3-pip python3-venv libatlas-base-dev \
+    libhdf5-dev libopenblas-dev libjpeg-dev libtiff5-dev \
+    libavcodec-dev libavformat-dev libswscale-dev libv4l-dev \
+    libxvidcore-dev libx264-dev libgtk-3-dev
+```
+
+3. **Clone the repository:**
+```bash
+cd ~
+git clone https://github.com/ceo1402/apollo-tyres-inspection.git
+cd apollo-tyres-inspection
+```
+
+4. **Create virtual environment:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+5. **Install Python dependencies:**
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+6. **Test camera connection:**
+```bash
+python scripts/test_camera.py
+```
+
+7. **Run the system:**
+```bash
+# Full system (capture + dashboard)
+python run.py --mode full
+
+# Or dashboard only
+python run.py --mode dashboard
+```
+
+8. **Access dashboard:**
+Open `http://<rpi-ip-address>:8501` from any device on your network.
+
+### Running as a Service (Auto-start on boot)
+
+Create a systemd service:
+
+```bash
+sudo nano /etc/systemd/system/apollo-inspection.service
+```
+
+Add:
+```ini
+[Unit]
+Description=Apollo Tyres Inspection System
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/apollo-tyres-inspection
+Environment=PATH=/home/pi/apollo-tyres-inspection/venv/bin
+ExecStart=/home/pi/apollo-tyres-inspection/venv/bin/python run.py --mode full
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable apollo-inspection
+sudo systemctl start apollo-inspection
+```
+
+Check status:
+```bash
+sudo systemctl status apollo-inspection
+```
+
+### Performance Tips for RPi5
+
+1. **Use USB 3.0 port** for the webcam
+2. **Reduce resolution** if needed (edit config.yaml):
+   ```yaml
+   camera:
+     width: 1280
+     height: 720
+   ```
+3. **Increase swap** if running low on memory:
+   ```bash
+   sudo dphys-swapfile swapoff
+   sudo nano /etc/dphys-swapfile  # Set CONF_SWAPSIZE=2048
+   sudo dphys-swapfile setup
+   sudo dphys-swapfile swapon
+   ```
+
 ## License
 
 Proprietary - Apollo Tyres Chennai
