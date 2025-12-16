@@ -484,10 +484,14 @@ else:
                                 st.caption(f"M{mark['mark_index']}: Q={mark['quality_score']:.0f}, C={mark['circularity']:.2f}")
         
         with tab4:
-            st.subheader("Data Table")
+            st.subheader("Data Table with Image Retrieval")
+            st.markdown("""
+            All data points are linked to their source images with timestamps. 
+            Select a row to view the associated tyre image for visual verification.
+            """)
             
-            # Column selection
-            default_cols = ['capture_id', 'mark_index', 'auto_type', 'auto_color', 
+            # Column selection - include timestamp by default
+            default_cols = ['capture_id', 'timestamp', 'mark_index', 'auto_type', 'auto_color', 
                            'quality_score', 'quality_grade', 'circularity', 'solidity', 
                            'eccentricity', 'estimated_diameter_mm']
             
@@ -500,10 +504,56 @@ else:
             )
             
             if show_columns:
-                st.dataframe(
-                    df[show_columns].sort_values('quality_score', ascending=False).head(100),
-                    use_container_width=True
-                )
+                display_df = df[show_columns].sort_values('quality_score', ascending=False).head(100)
+                st.dataframe(display_df, use_container_width=True)
+            
+            # Image retrieval section
+            st.markdown("---")
+            st.subheader("🔍 View Image for Data Point")
+            
+            # Select a capture to view
+            unique_captures = df['capture_id'].unique().tolist()
+            selected_capture = st.selectbox(
+                "Select Capture ID to view image",
+                options=unique_captures,
+                format_func=lambda x: f"{x} ({df[df['capture_id']==x]['timestamp'].iloc[0][:19] if 'timestamp' in df.columns else 'N/A'})"
+            )
+            
+            if selected_capture:
+                capture = db.get_capture(selected_capture)
+                if capture:
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**Capture ID:** {capture['capture_id']}")
+                        st.write(f"**Timestamp:** {capture['timestamp']}")
+                        st.write(f"**Marks Detected:** {capture['total_marks_detected']}")
+                        st.write(f"**Labeled:** {'Yes' if capture.get('is_labeled') else 'No'}")
+                        
+                        # Show marks for this capture
+                        cap_marks = df[df['capture_id'] == selected_capture]
+                        if len(cap_marks) > 0:
+                            st.write("**Mark Details:**")
+                            for _, mark in cap_marks.iterrows():
+                                grade_color = {'excellent': '🟢', 'good': '🔵', 'marginal': '🟡', 'poor': '🔴'}.get(mark.get('quality_grade', ''), '⚪')
+                                st.write(f"  {grade_color} Mark {mark['mark_index']}: Q={mark.get('quality_score', 0):.0f}, "
+                                        f"C={mark.get('circularity', 0):.3f}, S={mark.get('solidity', 0):.3f}")
+                    
+                    with col2:
+                        # Display image
+                        if capture.get('annotated_image_path') and Path(capture['annotated_image_path']).exists():
+                            st.image(capture['annotated_image_path'], 
+                                    caption=f"Annotated: {capture['capture_id']}", 
+                                    use_container_width=True)
+                        elif capture.get('full_image_path') and Path(capture['full_image_path']).exists():
+                            st.image(capture['full_image_path'], 
+                                    caption=f"Full Frame: {capture['capture_id']}", 
+                                    use_container_width=True)
+                        else:
+                            st.warning("Image file not found")
+                    
+                    # Link to labeling studio
+                    st.info(f"💡 To label this capture, go to **Labeling Studio** and search for: {capture['capture_id'][-13:]}")
             
             # Export option
             st.markdown("---")
