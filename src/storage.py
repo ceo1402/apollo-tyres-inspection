@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import os
 import shutil
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Tuple
@@ -14,6 +15,10 @@ from .config import get_config, StorageConfig, CaptureConfig
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+# Constants for cleanup
+STALE_LIVE_FRAME_AGE_SECONDS = 3600  # 1 hour
+DEFAULT_CLEANUP_INTERVAL_SECONDS = 3600  # 1 hour
 
 
 class ImageStorage:
@@ -37,7 +42,7 @@ class ImageStorage:
         
         # Cleanup tracking
         self._last_cleanup_time: float = 0
-        self._cleanup_interval_seconds: int = 3600  # Default: 1 hour
+        self._cleanup_interval_seconds: int = DEFAULT_CLEANUP_INTERVAL_SECONDS
     
     def generate_capture_id(self, sequence_number: int) -> str:
         """Generate a unique capture ID."""
@@ -253,10 +258,9 @@ class ImageStorage:
         
         if live_frame_path.exists():
             try:
-                import time
                 age = time.time() - live_frame_path.stat().st_mtime
                 # Remove if older than 1 hour (system likely stopped)
-                if age > 3600:
+                if age > STALE_LIVE_FRAME_AGE_SECONDS:
                     live_frame_path.unlink()
                     logger.info(f"Removed stale live frame (age: {age:.0f}s)")
                     return True
@@ -344,7 +348,6 @@ class ImageStorage:
         Returns:
             Dictionary with cleanup results
         """
-        import time
         current_time = time.time()
         
         # Check if cleanup is needed (default: every hour)
