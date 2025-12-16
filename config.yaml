@@ -1,4 +1,5 @@
 # Apollo Tyres Chennai - Tyre Mark Inspection Configuration
+# Production-ready settings optimized for Raspberry Pi 5 deployment
 
 project:
   name: "Apollo Tyres Chennai - Paint Mark Inspection POC"
@@ -13,14 +14,16 @@ camera:
   pixels_per_mm: 1.2  # Calibrate on first run
 
 capture:
-  # State machine
+  # State machine tuning for conveyor capture
+  # - Lower threshold = more sensitive tyre detection
+  # - Higher stability_frames = more stable but slower capture
   tyre_presence_threshold: 0.15
   tyre_fully_visible_margin: 50
   empty_conveyor_threshold: 0.05
-  stability_frames: 3
-  min_capture_interval_ms: 1500
+  stability_frames: 3  # Frames tyre must be stable before capture
+  min_capture_interval_ms: 1500  # Minimum time between captures of same tyre
   
-  # Image saving
+  # Image saving - all enabled for full capture
   save_full_frame: true
   save_tyre_crop: true
   save_annotated: true
@@ -28,7 +31,8 @@ capture:
   jpeg_quality: 95
 
 detection:
-  # HSV color ranges
+  # HSV color ranges - adjust based on actual paint colors
+  # Red hue wraps around 0/180, so we need two ranges
   red_lower1: [0, 100, 100]
   red_upper1: [10, 255, 255]
   red_lower2: [170, 100, 100]
@@ -36,16 +40,16 @@ detection:
   yellow_lower: [20, 100, 100]
   yellow_upper: [35, 255, 255]
   
-  # Blob filtering
+  # Blob filtering - adjust based on actual mark sizes
   min_mark_area: 100
   max_mark_area: 2000
   min_circularity_filter: 0.5
   
-  # Donut detection
+  # Donut detection thresholds
   donut_inner_ratio_min: 0.2
   donut_inner_ratio_max: 0.6
   
-  # Morphology
+  # Morphology for noise reduction
   morph_kernel_size: 5
   morph_iterations: 2
 

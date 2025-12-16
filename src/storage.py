@@ -2,12 +2,18 @@
 
 import cv2
 import numpy as np
-from datetime import datetime
+import os
+import shutil
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Tuple
+import logging
 
 from .models import MarkMeasurement, TyreDetectionResult
 from .config import get_config, StorageConfig, CaptureConfig
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 class ImageStorage:
@@ -28,6 +34,10 @@ class ImageStorage:
         for path in [self.captures_path, self.marks_path, 
                      self.baselines_path, self.exports_path]:
             path.mkdir(parents=True, exist_ok=True)
+        
+        # Cleanup tracking
+        self._last_cleanup_time: float = 0
+        self._cleanup_interval_seconds: int = 3600  # Default: 1 hour
     
     def generate_capture_id(self, sequence_number: int) -> str:
         """Generate a unique capture ID."""
@@ -196,3 +206,182 @@ class ImageStorage:
     def get_export_path(self, filename: str) -> str:
         """Get path for export file."""
         return str(self.exports_path / filename)
+    
+    # =====================================================
+    # Cache/Storage Cleanup Methods for Production
+    # =====================================================
+    
+    def cleanup_old_baselines(self, keep_count: int = 10) -> int:
+        """
+        Remove old baseline images, keeping only the most recent ones.
+        
+        Args:
+            keep_count: Number of most recent baselines to keep
+            
+        Returns:
+            Number of files deleted
+        """
+        baseline_files = sorted(
+            self.baselines_path.glob('baseline_*.jpg'),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True
+        )
+        
+        deleted = 0
+        for old_file in baseline_files[keep_count:]:
+            try:
+                old_file.unlink()
+                deleted += 1
+                logger.debug(f"Deleted old baseline: {old_file.name}")
+            except Exception as e:
+                logger.warning(f"Failed to delete baseline {old_file}: {e}")
+        
+        if deleted > 0:
+            logger.info(f"Cleaned up {deleted} old baseline images")
+        
+        return deleted
+    
+    def cleanup_live_frame(self) -> bool:
+        """
+        Remove stale live frame file if it's too old.
+        Prevents dashboard from showing very old frames.
+        
+        Returns:
+            True if file was deleted
+        """
+        live_frame_path = self.captures_path.parent / "live_frame.jpg"
+        
+        if live_frame_path.exists():
+            try:
+                import time
+                age = time.time() - live_frame_path.stat().st_mtime
+                # Remove if older than 1 hour (system likely stopped)
+                if age > 3600:
+                    live_frame_path.unlink()
+                    logger.info(f"Removed stale live frame (age: {age:.0f}s)")
+                    return True
+            except Exception as e:
+                logger.warning(f"Failed to cleanup live frame: {e}")
+        
+        return False
+    
+    def cleanup_empty_date_folders(self) -> int:
+        """
+        Remove empty date folders from captures and marks directories.
+        
+        Returns:
+            Number of folders deleted
+        """
+        deleted = 0
+        
+        for base_path in [self.captures_path, self.marks_path]:
+            if not base_path.exists():
+                continue
+                
+            for folder in base_path.iterdir():
+                if folder.is_dir():
+                    try:
+                        # Check if folder is empty
+                        if not any(folder.iterdir()):
+                            folder.rmdir()
+                            deleted += 1
+                            logger.debug(f"Deleted empty folder: {folder}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove folder {folder}: {e}")
+        
+        if deleted > 0:
+            logger.info(f"Cleaned up {deleted} empty date folders")
+        
+        return deleted
+    
+    def get_storage_stats(self) -> dict:
+        """
+        Get current storage usage statistics.
+        
+        Returns:
+            Dictionary with storage statistics
+        """
+        stats = {
+            'captures_size_mb': 0,
+            'captures_count': 0,
+            'marks_size_mb': 0,
+            'marks_count': 0,
+            'baselines_size_mb': 0,
+            'baselines_count': 0,
+            'total_size_mb': 0,
+        }
+        
+        def get_dir_stats(path: Path) -> Tuple[int, float]:
+            """Get file count and size in MB for a directory."""
+            count = 0
+            size_bytes = 0
+            if path.exists():
+                for f in path.rglob('*.jpg'):
+                    count += 1
+                    size_bytes += f.stat().st_size
+            return count, size_bytes / (1024 * 1024)
+        
+        stats['captures_count'], stats['captures_size_mb'] = get_dir_stats(self.captures_path)
+        stats['marks_count'], stats['marks_size_mb'] = get_dir_stats(self.marks_path)
+        stats['baselines_count'], stats['baselines_size_mb'] = get_dir_stats(self.baselines_path)
+        
+        stats['total_size_mb'] = (
+            stats['captures_size_mb'] + 
+            stats['marks_size_mb'] + 
+            stats['baselines_size_mb']
+        )
+        
+        return stats
+    
+    def periodic_cleanup(self, force: bool = False) -> dict:
+        """
+        Perform periodic cleanup operations.
+        Called automatically during idle periods.
+        
+        Args:
+            force: If True, run cleanup regardless of time since last cleanup
+            
+        Returns:
+            Dictionary with cleanup results
+        """
+        import time
+        current_time = time.time()
+        
+        # Check if cleanup is needed (default: every hour)
+        if not force and (current_time - self._last_cleanup_time) < self._cleanup_interval_seconds:
+            return {'skipped': True, 'reason': 'Too soon since last cleanup'}
+        
+        self._last_cleanup_time = current_time
+        
+        results = {
+            'timestamp': datetime.now().isoformat(),
+            'baselines_deleted': 0,
+            'empty_folders_deleted': 0,
+            'live_frame_cleaned': False,
+            'storage_stats': {},
+        }
+        
+        try:
+            # Cleanup old baselines (keep last 10)
+            results['baselines_deleted'] = self.cleanup_old_baselines(keep_count=10)
+            
+            # Cleanup empty date folders
+            results['empty_folders_deleted'] = self.cleanup_empty_date_folders()
+            
+            # Cleanup stale live frame
+            results['live_frame_cleaned'] = self.cleanup_live_frame()
+            
+            # Get current storage stats
+            results['storage_stats'] = self.get_storage_stats()
+            
+            logger.info(f"Periodic cleanup completed: {results}")
+            
+        except Exception as e:
+            logger.error(f"Error during periodic cleanup: {e}")
+            results['error'] = str(e)
+        
+        return results
+    
+    def set_cleanup_interval(self, seconds: int):
+        """Set the interval between automatic cleanups."""
+        self._cleanup_interval_seconds = max(60, seconds)  # Minimum 1 minute
