@@ -60,6 +60,39 @@ class MeasurementConfig:
 
 
 @dataclass
+class QualityConfig:
+    """Configuration for quality assessment thresholds.
+    
+    These thresholds define what constitutes a "good" paint mark.
+    Marks are scored based on how close they are to ideal values.
+    """
+    # Ideal circularity is 1.0 (perfect circle)
+    circularity_ideal: float = 1.0
+    circularity_min_acceptable: float = 0.75
+    circularity_weight: float = 0.35  # Weight in composite score
+    
+    # Ideal solidity is 1.0 (no concavities)
+    solidity_ideal: float = 1.0
+    solidity_min_acceptable: float = 0.85
+    solidity_weight: float = 0.25
+    
+    # Ideal eccentricity is 0.0 (perfect circle, not ellipse)
+    eccentricity_ideal: float = 0.0
+    eccentricity_max_acceptable: float = 0.3
+    eccentricity_weight: float = 0.20
+    
+    # Edge roughness ideal is 0.0 (smooth edges)
+    edge_roughness_ideal: float = 0.0
+    edge_roughness_max_acceptable: float = 0.3
+    edge_roughness_weight: float = 0.20
+    
+    # Statistical thresholds (sigma multipliers)
+    sigma_excellent: float = 1.0  # Within 1 std dev
+    sigma_good: float = 2.0       # Within 2 std devs
+    sigma_marginal: float = 3.0   # Within 3 std devs
+
+
+@dataclass
 class StorageConfig:
     database_path: str = "./data/inspection.db"
     captures_path: str = "./data/captures"
@@ -81,6 +114,7 @@ class Config:
     capture: CaptureConfig = field(default_factory=CaptureConfig)
     detection: DetectionConfig = field(default_factory=DetectionConfig)
     measurement: MeasurementConfig = field(default_factory=MeasurementConfig)
+    quality: QualityConfig = field(default_factory=QualityConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
 
@@ -112,6 +146,9 @@ def load_config(config_path: str = "config.yaml") -> Config:
     
     if 'measurement' in data:
         config.measurement = MeasurementConfig(**data['measurement'])
+    
+    if 'quality' in data:
+        config.quality = QualityConfig(**data['quality'])
     
     if 'storage' in data:
         config.storage = StorageConfig(**data['storage'])
